@@ -73,7 +73,7 @@ struct CommandResponse {
                     }
                 };
 
-                // Handle the action from Brain (Basic Protocol)
+                // Handle the action from Brain
                 match brain_resp.action.as_str() {
                     "REPLY" => {
                         if let Some(payload) = brain_resp.payload {
@@ -81,6 +81,8 @@ struct CommandResponse {
                                 eprintln!("Failed to write payload: {}", e);
                                 return;
                             }
+                            // Add a newline if payload doesn't end with one, but usually LLM output might vary.
+                            // Adding a newline for safety before prompt.
                             let _ = socket.write_all(b"\n").await;
                         }
                         // Write prompt
@@ -89,10 +91,38 @@ struct CommandResponse {
                             return;
                         }
                     },
+                    "TARPIT" => {
+                        println!("Activating TARPIT for session {}", session_id);
+                        if let Some(payload) = brain_resp.payload {
+                            let _ = socket.write_all(payload.as_bytes()).await;
+                            let _ = socket.write_all(b"\n").await;
+                        }
+                        // Infinite loop: write 1 byte every 10 seconds
+                        loop {
+                            if let Err(_) = socket.write_all(b" ").await {
+                                break;
+                            }
+                            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                        }
+                        return; // Connection is effectively dead/stuck
+                    },
+                    "INK" => {
+                        println!("Activating INK for session {}", session_id);
+                        let mut rng = StdRng::from_entropy();
+                        let mut garbage = [0u8; 4096];
+                        
+                        loop {
+                            rng.fill(&mut garbage);
+                            if let Err(_) = socket.write_all(&garbage).await {
+                                break;
+                            }
+                            // No sleep, flood the socket
+                        }
+                        return;
+                    },
                     _ => {
-                        // For now, treat everything else as a generic error or ignore
-                        eprintln!("Action '{}' not yet implemented in this commit.", brain_resp.action);
-                        let _ = socket.write_all(b"root@ubuntu:~# ").await;
+                        eprintln!("Unknown action received: {}", brain_resp.action);
+                        let _ = socket.write_all(b"Error: Internal Protocol Mismatch\nroot@ubuntu:~# ").await;
                     }
                 }
             }

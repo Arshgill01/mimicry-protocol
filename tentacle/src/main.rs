@@ -2,6 +2,8 @@ use tokio::net::TcpListener;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
+use rand::{Rng, SeedableRng};
+use rand::rngs::StdRng;
 
 #[derive(Serialize)]
 struct CommandRequest {
@@ -11,7 +13,8 @@ struct CommandRequest {
 
 #[derive(Deserialize)]
 struct CommandResponse {
-    response: String,
+    action: String,
+    payload: Option<String>,
 }
 
 #[tokio::main] async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -70,16 +73,27 @@ struct CommandResponse {
                     }
                 };
 
-                // Write response back to socket
-                if let Err(e) = socket.write_all(brain_resp.response.as_bytes()).await {
-                    eprintln!("Failed to write to socket: {}", e);
-                    return;
-                }
-                
-                // Add a newline for cleaner terminal output
-                if let Err(e) = socket.write_all(b"\n").await {
-                    eprintln!("Failed to write newline to socket: {}", e);
-                    return;
+                // Handle the action from Brain (Basic Protocol)
+                match brain_resp.action.as_str() {
+                    "REPLY" => {
+                        if let Some(payload) = brain_resp.payload {
+                            if let Err(e) = socket.write_all(payload.as_bytes()).await {
+                                eprintln!("Failed to write payload: {}", e);
+                                return;
+                            }
+                            let _ = socket.write_all(b"\n").await;
+                        }
+                        // Write prompt
+                        if let Err(e) = socket.write_all(b"root@ubuntu:~# ").await {
+                            eprintln!("Failed to write prompt: {}", e);
+                            return;
+                        }
+                    },
+                    _ => {
+                        // For now, treat everything else as a generic error or ignore
+                        eprintln!("Action '{}' not yet implemented in this commit.", brain_resp.action);
+                        let _ = socket.write_all(b"root@ubuntu:~# ").await;
+                    }
                 }
             }
         });

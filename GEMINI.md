@@ -1,82 +1,92 @@
-# Project: Mimicry Protocol (Octopus Hackathon Submission)
+# Project: Mimicry Protocol - Phase 3: The Dashboard (The Eyes)
 
-## 1. Context & Vision
+## 1. Current Status
 
-We are building "Mimicry Protocol," a next-generation Cybersecurity Honeypot for the Octopus Hackathon.
+We have a functioning backend:
 
-**The Core Metaphor:** Traditional firewalls are static walls. Mimicry is an **Octopus**.
+- Rust (`/tentacle`) handles raw TCP connections.
+- Python (`/brain`) provides LLM intelligence and defense strategies (`TARPIT`, `INK`).
 
-1.  **Camouflage:** It mimics a vulnerable server (e.g., an Ubuntu terminal) to lure hackers in.
-2.  **Intelligence:** It uses an LLM to generate realistic responses to hacker commands, learning their intent.
-3.  **Ink (Defense):** When a threat is confirmed, it "deploys ink"—using low-level network tricks (tarpits, infinite loops) to waste the attacker's time.
+## 2. Phase 3 Objectives
 
-## 2. The Master Architecture
+We need a **Real-Time Web Dashboard** to visualize attacks as they happen.
 
-The system follows a "Split-Brain" architecture to ensure high performance and stability:
-
-- **The Tentacles (Rust):** A high-performance, async TCP Server. It handles raw connections, manages sockets, and executes low-level network defense (Tarpit).
-- **The Brain (Python):** A logic layer using FastAPI and a local LLM (Ollama). It analyzes the hacker's input and generates the fake terminal output.
-- **The Nervous System:** HTTP/JSON communication between Rust and Python.
+- **Data Flow Update:** The Python Brain will act as the "Broadcaster." When it processes a command, it will send the data to the Rust Tentacle (as before) AND broadcast it to the Frontend via WebSocket.
+- **The UI:** A "Cyberpunk/Hacker" aesthetic dashboard showing live logs, threat levels, and the status of the Octopus.
 
 ---
 
-## 3. Phase 1: The Skeleton (Current Task)
+## 3. Implementation Steps
 
-**Objective:** Build the "Hello World" of the honeypot. We need a Rust server that listens for connections and forwards the input to a Python backend, which replies with a mocked response.
+### 3.1 Backend Update: Add WebSockets to Python (`/brain/main.py`)
 
-**Constraints for this Phase:**
+**Task:** Enable real-time communication with the browser.
 
-- **Do NOT** build the Frontend/Dashboard yet.
-- **Do NOT** implement the complex "Tarpit/Ink" defense logic yet.
-- **Do NOT** worry about WebSockets yet.
-- Focus purely on: `User -> Rust TCP -> Python API -> Rust TCP -> User`.
+1.  **WebSocket Manager:** Add a `ConnectionManager` class to handle active WebSocket connections (connect, disconnect, broadcast).
+2.  **Endpoint:** Create a standard WebSocket endpoint: `@app.websocket("/ws")`.
+3.  **Broadcast Logic:** Modify the existing `process_command` function.
+    - Right before returning the JSON response to Rust, **await** a broadcast message to all connected Websockets.
+    - **Message Format:**
+      ```json
+      {
+        "timestamp": "HH:MM:SS",
+        "ip": "127.0.0.1", // Mock this or pass from Rust if available
+        "command": "rm -rf /",
+        "action": "TARPIT", // or REPLY, INK
+        "response_snippet": "Permission denied..."
+      }
+      ```
 
-### 3.1 Tech Stack Requirements
+### 3.2 Frontend Setup (`/dashboard`)
 
-- **Rust (The Proxy):**
-  - Use `tokio` for async runtime (essential for handling multiple hackers).
-  - Use `reqwest` to send HTTP requests to the Python Brain.
-  - Use `tokio::net::TcpListener`.
-- **Python (The Brain):**
-  - Use `FastAPI` for the server.
-  - Use `uvicorn` to run it.
-  - (Optional for now) Prepare the structure for `ollama` integration, but a simple text return is fine for step 1.
+**Task:** Initialize the visualization layer.
 
-### 3.2 Implementation Steps (Execute these in order)
+1.  **Stack:** create a new Next.js project: `npx create-next-app@latest dashboard` (TypeScript, Tailwind, App Router).
+2.  **Dependencies:** Install `lucide-react` for icons and `framer-motion` for animations.
 
-#### Step A: Python Backend Setup (`/brain`)
+### 3.3 The UI Components
 
-Create a folder named `brain`. Initialize a Python environment.
-Create a file `main.py` with a FastAPI app:
+**Design Goal:** Dark mode, monospace fonts, "Command Center" vibe.
 
-1.  Endpoint: `POST /process_command`
-2.  Input JSON: `{"session_id": "string", "command": "string"}`
-3.  Logic:
-    - Log the received command to the console.
-    - Return a JSON response: `{"response": "root@ubuntu:~# Command received: [command]"}`.
-4.  Run this server on port `8000`.
+**Create a main page (`page.tsx`) with two primary sections:**
 
-#### Step B: Rust TCP Server Setup (`/tentacle`)
+#### Section A: The "Octopus State" (Visual Indicator)
 
-Create a folder named `tentacle` (initialize with `cargo new tentacle`).
-In `main.rs`:
+- A large central status indicator.
+- **State Logic:**
+  - **Idle:** Green Ring / Pulse. Text: "SYSTEM: WAITING".
+  - **Active (REPLY):** Yellow Ring / Fast Pulse. Text: "MIMICRY: ACTIVE".
+  - **Defense (TARPIT/INK):** Red or Blue Ring / Aggressive Animation. Text: "DEFENSE MODE: INK DEPLOYED".
 
-1.  Bind a `TcpListener` to `0.0.0.0:2222`.
-2.  Accept incoming connections in a loop.
-3.  Spawn a new `tokio` task for each connection.
-4.  **Inside the loop:**
-    - Read data from the socket.
-    - Convert bytes to UTF-8 string.
-    - Send a POST request to `http://localhost:8000/process_command` with the data.
-    - Await the response from Python.
-    - Write the response back to the socket.
+#### Section B: The Live Attack Log (Terminal View)
 
-### 3.3 Definition of Done
+- A scrolling container that mimics a terminal window.
+- It connects to `ws://localhost:8000/ws` on mount.
+- When a message arrives, prepend it to the list.
+- **Styling:**
+  - Normal commands (`ls`): White text.
+  - Threats (`rm -rf`): Red text.
+  - Octopus Responses: Dimmed gray text.
 
-1.  I can start the Python server.
-2.  I can start the Rust server.
-3.  I can open a terminal and run `nc localhost 2222` (or `telnet`).
-4.  When I type "hello", I see the Python server log it, and my terminal displays the response from Python.
+### 3.4 Detailed Implementation Prompts (Code Generation)
+
+**Step 1:**
+"Update `brain/main.py` to include `WebSocket` from `fastapi` and a `ConnectionManager`. Broadcast every processed command event to connected clients."
+
+**Step 2:**
+"Create the Next.js `dashboard` page. Use a `useWebSocket` hook to connect to the backend. Store the logs in a React state array. Render the logs in a styled 'terminal' window using Tailwind CSS (bg-black, text-green-400, font-mono)."
+
+**Step 3:**
+"Add the visual flair. Use `framer-motion` to create a 'Status Circle' component that changes color (Green/Yellow/Red) based on the last received `action` from the WebSocket. If the action is `TARPIT`, the screen should visually 'glitch' or turn red."
+
+### 3.5 Definition of Done
+
+1.  I start Python, Rust, and the Next.js dev server.
+2.  I open `localhost:3000` (Dashboard).
+3.  I run `nc localhost 2222` and type `ls`.
+4.  **Result:** The Dashboard instantly updates showing the command `ls` and the status "MIMICRY ACTIVE".
+5.  I type `rm -rf`.
+6.  **Result:** The Dashboard flashes RED, shows "TARPIT ACTIVE", and logs the threat.
 
 **Action:**
-Please generate the folder structure, the `requirements.txt` for Python, the `Cargo.toml` for Rust, and the code for `main.py` and `main.rs`.
+Please generate the code for the Python WebSocket update first, then the Next.js page component.

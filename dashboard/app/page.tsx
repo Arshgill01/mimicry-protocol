@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Terminal, ShieldAlert, Activity, Globe as GlobeIcon, Wifi } from 'lucide-react';
+import { ShieldAlert, Wifi, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import dynamic from 'next/dynamic';
+import SessionCard from './components/SessionCard';
+import useCyberSounds from './hooks/useCyberSounds';
 
 // Dynamically import Globe to avoid SSR issues with WebGL
 const CyberGlobe = dynamic(() => import('./components/CyberGlobe'), { ssr: false });
@@ -41,10 +43,25 @@ type IncomingMessage = {
 export default function Dashboard() {
   const [sessions, setSessions] = useState<Record<string, SessionData>>({});
   const [globalStatus, setGlobalStatus] = useState<'IDLE' | 'ATTACK'>('IDLE');
+  const [isMuted, setIsMuted] = useState(false);
   const ws = useRef<WebSocket | null>(null);
+  
+  const { playPing, playAlarm } = useCyberSounds();
 
+  // --- 1. Hydration (Load History) ---
   useEffect(() => {
-    // Connect to WebSocket
+    fetch('http://localhost:8000/history')
+      .then(res => res.json())
+      .then(data => {
+        if (data.sessions) {
+          setSessions(data.sessions);
+        }
+      })
+      .catch(err => console.error("Failed to hydrate history:", err));
+  }, []);
+
+  // --- 2. WebSocket Connection ---
+  useEffect(() => {
     ws.current = new WebSocket('ws://localhost:8000/ws');
 
     ws.current.onopen = () => {
@@ -57,6 +74,16 @@ export default function Dashboard() {
       setSessions((prev) => {
         const existing = prev[data.session_id];
         
+        // --- Audio Triggers ---
+        if (!isMuted) {
+           if (!existing) {
+               playPing(); // New Session
+           }
+           if (data.action === 'TARPIT' || data.action === 'INK') {
+               playAlarm(); // Threat
+           }
+        }
+
         // Determine session status based on action
         let newStatus: SessionData['status'] = 'ACTIVE';
         if (data.action === 'TARPIT') newStatus = 'TARPIT';
@@ -91,7 +118,7 @@ export default function Dashboard() {
     return () => {
       ws.current?.close();
     };
-  }, []);
+  }, [isMuted, playPing, playAlarm]); // Re-bind if mute changes
 
   // Check for global threats
   useEffect(() => {
@@ -109,14 +136,14 @@ export default function Dashboard() {
       <div className="w-full border-b border-green-900/50 bg-black/40 backdrop-blur-sm relative z-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center">
             {/* Left: Branding */}
-            <div className="p-8 w-full md:w-1/3">
+            <div className="p-8 w-full md:w-1/3 relative">
               <h1 className="text-3xl font-bold tracking-widest flex items-center gap-3">
                 <ShieldAlert className={globalStatus === 'ATTACK' ? 'text-red-500 animate-pulse' : 'text-green-500'} />
                 MIMICRY_
               </h1>
-              <p className="text-xs text-gray-500 mt-1 tracking-[0.2em]">HONEYPOT COMMAND CENTER v3.2</p>
+              <p className="text-xs text-gray-500 mt-1 tracking-[0.2em]">HONEYPOT COMMAND CENTER v4.0</p>
               
-              <div className="mt-8">
+              <div className="mt-8 flex items-center gap-4">
                 <motion.div
                     animate={globalStatus === 'ATTACK' ? { scale: [1, 1.1, 1] } : {}}
                     transition={{ repeat: Infinity, duration: 0.5 }}
@@ -128,6 +155,14 @@ export default function Dashboard() {
                 >
                     {globalStatus === 'ATTACK' ? 'SYSTEM UNDER ATTACK' : 'SYSTEM OPTIMAL'}
                 </motion.div>
+
+                {/* Mute Toggle */}
+                <button 
+                  onClick={() => setIsMuted(!isMuted)}
+                  className="p-2 border border-green-900 rounded hover:bg-green-900/20 text-green-600 transition-colors"
+                >
+                  {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                </button>
               </div>
             </div>
 
@@ -159,73 +194,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-}
-
-// --- SUB-COMPONENT: SESSION CARD ---
-
-function SessionCard({ data }: { data: SessionData }) {
-  // Determine border color based on status
-  const borderColor = 
-    data.status === 'TARPIT' ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]' :
-    data.status === 'INK' ? 'border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.3)]' :
-    'border-green-500/50 hover:border-green-500';
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      className={`bg-black border ${borderColor} rounded-lg overflow-hidden transition-all duration-300 relative`}
-    >
-       {/* Scanline specifically for card (optional, but adds depth) */}
-       <div className="absolute inset-0 bg-gradient-to-b from-transparent to-green-900/5 pointer-events-none"></div>
-
-      {/* Card Header */}
-      <div className={`px-4 py-3 border-b ${data.status === 'TARPIT' ? 'border-red-900 bg-red-900/10' : 'border-green-900/30 bg-green-900/10'} flex justify-between items-center relative z-10`}>
-        <div className="flex items-center gap-2">
-          <GlobeIcon size={14} className="opacity-50" />
-          <span className="font-bold tracking-widest">{data.country}</span>
-          <span className="text-xs text-gray-500">#{data.id.substring(0, 8)}</span>
-        </div>
-        <Badge status={data.status} />
-      </div>
-
-      {/* Mini Terminal Body */}
-      <div className="p-4 font-mono text-sm h-64 flex flex-col justify-end bg-black/80 relative z-10">
-        <div className="space-y-2 overflow-hidden">
-          {data.logs.slice().reverse().map((log, i) => (
-            <div key={i} className="opacity-80">
-               <div className="flex gap-2">
-                 <span className="text-gray-600">$</span>
-                 <span className={`${
-                    log.action === 'TARPIT' ? 'text-red-500 font-bold' : 
-                    log.action === 'INK' ? 'text-blue-400 font-bold glitch-text' : 
-                    'text-green-400'
-                 }`}>
-                   {log.command}
-                 </span>
-               </div>
-               {log.response_snippet && (
-                 <div className="text-gray-600 text-xs pl-4 truncate">{log.response_snippet}</div>
-               )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="px-4 py-2 bg-gray-900/30 border-t border-green-900/30 flex justify-between items-center text-[10px] text-gray-500 uppercase tracking-wider relative z-10">
-        <span>LOC: {data.lat.toFixed(2)}, {data.lng.toFixed(2)}</span>
-        <span>LAST: {data.lastActive}</span>
-      </div>
-    </motion.div>
-  );
-}
-
-function Badge({ status }: { status: SessionData['status'] }) {
-  if (status === 'TARPIT') return <span className="bg-red-900 text-red-200 px-2 py-0.5 rounded text-[10px] font-bold border border-red-700 animate-pulse">TARPIT</span>;
-  if (status === 'INK') return <span className="bg-blue-900 text-blue-200 px-2 py-0.5 rounded text-[10px] font-bold border border-blue-700">INK FLOOD</span>;
-  if (status === 'IDLE') return <span className="bg-gray-800 text-gray-400 px-2 py-0.5 rounded text-[10px] border border-gray-700">IDLE</span>;
-  return <span className="bg-green-900 text-green-200 px-2 py-0.5 rounded text-[10px] font-bold border border-green-700">ACTIVE</span>;
 }

@@ -1,10 +1,36 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Terminal, ShieldAlert, Activity, Lock } from 'lucide-react';
+import { Terminal, ShieldAlert, Activity, Globe as GlobeIcon, Wifi } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import dynamic from 'next/dynamic';
 
+// Dynamically import Globe to avoid SSR issues with WebGL
+const CyberGlobe = dynamic(() => import('./components/CyberGlobe'), { ssr: false });
+
+// --- Types ---
 type Log = {
+  timestamp: string;
+  command: string;
+  action: string;
+  response_snippet: string;
+};
+
+type SessionData = {
+  id: string;
+  country: string;
+  lat: number;
+  lng: number;
+  status: "ACTIVE" | "IDLE" | "TARPIT" | "INK";
+  lastActive: string; // timestamp
+  logs: Log[];
+};
+
+type IncomingMessage = {
+  session_id: string;
+  country: string;
+  lat?: number;
+  lng?: number;
   timestamp: string;
   ip: string;
   command: string;
@@ -13,11 +39,9 @@ type Log = {
 };
 
 export default function Dashboard() {
-  const [logs, setLogs] = useState<Log[]>([]);
-  const [status, setStatus] = useState<'IDLE' | 'ACTIVE' | 'DEFENSE'>('IDLE');
-  const [lastAction, setLastAction] = useState<string>('');
+  const [sessions, setSessions] = useState<Record<string, SessionData>>({});
+  const [globalStatus, setGlobalStatus] = useState<'IDLE' | 'ATTACK'>('IDLE');
   const ws = useRef<WebSocket | null>(null);
-  const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Connect to WebSocket
@@ -28,21 +52,38 @@ export default function Dashboard() {
     };
 
     ws.current.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      const newLog: Log = data;
+      const data: IncomingMessage = JSON.parse(event.data);
       
-      setLogs((prev) => [newLog, ...prev]);
-      setLastAction(newLog.action);
+      setSessions((prev) => {
+        const existing = prev[data.session_id];
+        
+        // Determine session status based on action
+        let newStatus: SessionData['status'] = 'ACTIVE';
+        if (data.action === 'TARPIT') newStatus = 'TARPIT';
+        if (data.action === 'INK') newStatus = 'INK';
 
-      // Update Status based on action
-      if (newLog.action === 'TARPIT' || newLog.action === 'INK') {
-        setStatus('DEFENSE');
-        // Reset to IDLE after 5 seconds if no more threats
-        setTimeout(() => setStatus('IDLE'), 5000);
-      } else if (newLog.action === 'REPLY') {
-        setStatus('ACTIVE');
-        setTimeout(() => setStatus('IDLE'), 3000);
-      }
+        const newLog: Log = {
+          timestamp: data.timestamp,
+          command: data.command,
+          action: data.action,
+          response_snippet: data.response_snippet
+        };
+
+        const updatedSession: SessionData = {
+          id: data.session_id,
+          country: data.country,
+          lat: data.lat || 0,
+          lng: data.lng || 0,
+          status: newStatus,
+          lastActive: data.timestamp,
+          logs: [newLog, ...(existing?.logs || [])].slice(0, 6) // Keep only last 6 logs
+        };
+
+        return {
+          ...prev,
+          [data.session_id]: updatedSession
+        };
+      });
     };
 
     ws.current.onclose = () => console.log('Disconnected from Brain');
@@ -52,97 +93,139 @@ export default function Dashboard() {
     };
   }, []);
 
-  // Visual variants for the status circle
-  const circleVariants = {
-    IDLE: { 
-      borderColor: '#10B981', // Green
-      boxShadow: '0 0 20px #10B981',
-      scale: [1, 1.05, 1],
-      transition: { repeat: Infinity, duration: 2 }
-    },
-    ACTIVE: { 
-      borderColor: '#FBBF24', // Yellow
-      boxShadow: '0 0 30px #FBBF24',
-      scale: [1, 1.1, 1],
-      transition: { repeat: Infinity, duration: 0.5 }
-    },
-    DEFENSE: { 
-      borderColor: '#EF4444', // Red
-      boxShadow: '0 0 50px #EF4444',
-      x: [0, -5, 5, -5, 5, 0], // Shake effect
-      transition: { repeat: Infinity, duration: 0.2 }
-    }
-  };
+  // Check for global threats
+  useEffect(() => {
+    const hasThreat = Object.values(sessions).some(s => s.status === 'TARPIT' || s.status === 'INK');
+    setGlobalStatus(hasThreat ? 'ATTACK' : 'IDLE');
+  }, [sessions]);
 
   return (
-    <div className={`min-h-screen bg-black text-green-400 font-mono p-8 transition-colors duration-500 ${status === 'DEFENSE' ? 'bg-red-950/20' : ''}`}>
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* SECTION A: STATUS INDICATOR */}
-        <div className="lg:col-span-1 flex flex-col items-center justify-center border border-green-800/30 bg-black/50 p-12 rounded-lg backdrop-blur-sm">
-          <motion.div
-            animate={status}
-            variants={circleVariants}
-            className="w-64 h-64 rounded-full border-4 flex items-center justify-center mb-8 relative"
-          >
-            <div className="absolute inset-0 rounded-full border border-green-900/50 scale-150 animate-pulse"></div>
-            {status === 'IDLE' && <Activity size={64} />}
-            {status === 'ACTIVE' && <Terminal size={64} />}
-            {status === 'DEFENSE' && <ShieldAlert size={64} />}
-          </motion.div>
-          
-          <h2 className="text-2xl font-bold tracking-widest mb-2">
-            {status === 'IDLE' && "SYSTEM: WAITING"}
-            {status === 'ACTIVE' && "MIMICRY: ACTIVE"}
-            {status === 'DEFENSE' && "DEFENSE MODE"}
-          </h2>
-          <p className="text-sm text-green-600 uppercase tracking-widest">
-            {lastAction ? `LAST ACTION: ${lastAction}` : "NO THREATS DETECTED"}
-          </p>
-        </div>
+    <div className={`min-h-screen bg-black text-green-400 font-mono transition-colors duration-500 relative overflow-hidden ${globalStatus === 'ATTACK' ? 'bg-red-950/20' : ''}`}>
+      
+      {/* CRT OVERLAY */}
+      <div className="crt-overlay"></div>
 
-        {/* SECTION B: LIVE LOGS */}
-        <div className="lg:col-span-2 flex flex-col border border-green-800/30 bg-black/90 p-6 rounded-lg h-[80vh] overflow-hidden shadow-2xl shadow-green-900/20">
-          <div className="flex items-center gap-2 mb-4 border-b border-green-900 pb-2">
-            <Terminal size={20} />
-            <span className="font-bold">LIVE INTERCEPT LOG</span>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-green-900">
-            <AnimatePresence>
-              {logs.map((log, index) => (
+      {/* TOP SECTION: GLOBAL MAP */}
+      <div className="w-full border-b border-green-900/50 bg-black/40 backdrop-blur-sm relative z-10">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center">
+            {/* Left: Branding */}
+            <div className="p-8 w-full md:w-1/3">
+              <h1 className="text-3xl font-bold tracking-widest flex items-center gap-3">
+                <ShieldAlert className={globalStatus === 'ATTACK' ? 'text-red-500 animate-pulse' : 'text-green-500'} />
+                MIMICRY_
+              </h1>
+              <p className="text-xs text-gray-500 mt-1 tracking-[0.2em]">HONEYPOT COMMAND CENTER v3.2</p>
+              
+              <div className="mt-8">
                 <motion.div
-                  key={index}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className={`p-3 rounded border-l-2 ${
-                    log.action === 'TARPIT' ? 'border-red-500 bg-red-900/10' : 
-                    log.action === 'INK' ? 'border-blue-500 bg-blue-900/10' :
-                    'border-green-500 bg-green-900/10'
-                  }`}
+                    animate={globalStatus === 'ATTACK' ? { scale: [1, 1.1, 1] } : {}}
+                    transition={{ repeat: Infinity, duration: 0.5 }}
+                    className={`inline-block px-4 py-2 rounded border ${
+                    globalStatus === 'ATTACK' 
+                        ? 'border-red-500 bg-red-900/20 text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]' 
+                        : 'border-green-500 bg-green-900/20 text-green-500'
+                    }`}
                 >
-                  <div className="flex justify-between text-xs text-gray-500 mb-1">
-                    <span>[{log.timestamp}] {log.ip}</span>
-                    <span className={`font-bold ${
-                      log.action === 'TARPIT' ? 'text-red-500' : 
-                      log.action === 'INK' ? 'text-blue-400' : 'text-green-500'
-                    }`}>{log.action}</span>
-                  </div>
-                  <div className="text-lg mb-1">
-                    <span className="text-gray-500">$ </span>
-                    <span className={log.action === 'TARPIT' ? 'text-red-400' : 'text-white'}>{log.command}</span>
-                  </div>
-                  <div className="text-xs text-gray-400 font-light truncate">
-                    {log.response_snippet}
-                  </div>
+                    {globalStatus === 'ATTACK' ? 'SYSTEM UNDER ATTACK' : 'SYSTEM OPTIMAL'}
                 </motion.div>
-              ))}
-            </AnimatePresence>
-            <div ref={logsEndRef} />
-          </div>
-        </div>
+              </div>
+            </div>
 
+            {/* Middle: The Globe */}
+            <div className="w-full md:w-2/3 h-[400px]">
+               <CyberGlobe activeSessions={Object.values(sessions)} />
+            </div>
+        </div>
+      </div>
+
+      {/* BOTTOM SECTION: SESSION GRID */}
+      <div className="max-w-7xl mx-auto p-8 relative z-10">
+        <h2 className="text-sm text-green-700 tracking-[0.2em] mb-6 border-b border-green-900/30 pb-2">ACTIVE INTERCEPTS ({Object.keys(sessions).length})</h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <AnimatePresence>
+            {Object.values(sessions).map((session) => (
+                <SessionCard key={session.id} data={session} />
+            ))}
+            </AnimatePresence>
+            
+            {Object.keys(sessions).length === 0 && (
+            <div className="col-span-full text-center py-12 opacity-30 border border-dashed border-green-900 rounded-lg">
+                <Wifi className="mx-auto mb-4" size={48} />
+                <p className="tracking-widest">NO SIGNALS INTERCEPTED...</p>
+            </div>
+            )}
+        </div>
       </div>
     </div>
   );
+}
+
+// --- SUB-COMPONENT: SESSION CARD ---
+
+function SessionCard({ data }: { data: SessionData }) {
+  // Determine border color based on status
+  const borderColor = 
+    data.status === 'TARPIT' ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]' :
+    data.status === 'INK' ? 'border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.3)]' :
+    'border-green-500/50 hover:border-green-500';
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      className={`bg-black border ${borderColor} rounded-lg overflow-hidden transition-all duration-300 relative`}
+    >
+       {/* Scanline specifically for card (optional, but adds depth) */}
+       <div className="absolute inset-0 bg-gradient-to-b from-transparent to-green-900/5 pointer-events-none"></div>
+
+      {/* Card Header */}
+      <div className={`px-4 py-3 border-b ${data.status === 'TARPIT' ? 'border-red-900 bg-red-900/10' : 'border-green-900/30 bg-green-900/10'} flex justify-between items-center relative z-10`}>
+        <div className="flex items-center gap-2">
+          <GlobeIcon size={14} className="opacity-50" />
+          <span className="font-bold tracking-widest">{data.country}</span>
+          <span className="text-xs text-gray-500">#{data.id.substring(0, 8)}</span>
+        </div>
+        <Badge status={data.status} />
+      </div>
+
+      {/* Mini Terminal Body */}
+      <div className="p-4 font-mono text-sm h-64 flex flex-col justify-end bg-black/80 relative z-10">
+        <div className="space-y-2 overflow-hidden">
+          {data.logs.slice().reverse().map((log, i) => (
+            <div key={i} className="opacity-80">
+               <div className="flex gap-2">
+                 <span className="text-gray-600">$</span>
+                 <span className={`${
+                    log.action === 'TARPIT' ? 'text-red-500 font-bold' : 
+                    log.action === 'INK' ? 'text-blue-400 font-bold glitch-text' : 
+                    'text-green-400'
+                 }`}>
+                   {log.command}
+                 </span>
+               </div>
+               {log.response_snippet && (
+                 <div className="text-gray-600 text-xs pl-4 truncate">{log.response_snippet}</div>
+               )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-2 bg-gray-900/30 border-t border-green-900/30 flex justify-between items-center text-[10px] text-gray-500 uppercase tracking-wider relative z-10">
+        <span>LOC: {data.lat.toFixed(2)}, {data.lng.toFixed(2)}</span>
+        <span>LAST: {data.lastActive}</span>
+      </div>
+    </motion.div>
+  );
+}
+
+function Badge({ status }: { status: SessionData['status'] }) {
+  if (status === 'TARPIT') return <span className="bg-red-900 text-red-200 px-2 py-0.5 rounded text-[10px] font-bold border border-red-700 animate-pulse">TARPIT</span>;
+  if (status === 'INK') return <span className="bg-blue-900 text-blue-200 px-2 py-0.5 rounded text-[10px] font-bold border border-blue-700">INK FLOOD</span>;
+  if (status === 'IDLE') return <span className="bg-gray-800 text-gray-400 px-2 py-0.5 rounded text-[10px] border border-gray-700">IDLE</span>;
+  return <span className="bg-green-900 text-green-200 px-2 py-0.5 rounded text-[10px] font-bold border border-green-700">ACTIVE</span>;
 }

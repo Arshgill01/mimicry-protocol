@@ -4,6 +4,9 @@
 
 Intercept, analyze, and respond to hacker attacks in real-time with an immersive War Room interface.
 
+<img width="1680" height="1050" alt="Screenshot 2026-02-01 at 1 40 40 AM" src="https://github.com/user-attachments/assets/49576b32-4261-47fa-9659-40aff7ad221c" />
+
+
 ---
 
 ## Quick Start

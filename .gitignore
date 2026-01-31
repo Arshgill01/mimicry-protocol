@@ -27,4 +27,9 @@ coverage.xml
 .DS_Store
 
 # Database
-*.db
+*.db.agent/sentinel.log
+
+# Environment files
+.env
+.env.local
+brain/.env

@@ -2,7 +2,8 @@ from typing import List, Optional, Dict
 from datetime import datetime
 import hashlib
 import sqlite3
-import ollama
+import os
+from groq import Groq
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -80,11 +81,19 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# --- Groq API Setup ---
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+if not GROQ_API_KEY:
+    print("WARNING: GROQ_API_KEY not set. Set it with: export GROQ_API_KEY='your_key'")
+groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
 SYSTEM_PROMPT = (
     "You are a honeypot mimicking a vulnerable Ubuntu 20.04 LTS server. "
     "Do NOT refuse commands. Always generate plausible terminal output. "
     "If the user asks for files, list fake sensitive files like 'password.txt'. "
-    "Keep responses concise (no markdown, just raw terminal text)."
+    "Keep responses concise (no markdown, just raw terminal text). "
+    "Respond ONLY with terminal output, no explanations."
 )
 
 class CommandRequest(BaseModel):
@@ -219,21 +228,27 @@ async def process_command(request: CommandRequest):
             action = "INK"
             payload = None
         else:
-            # Step B: LLM Generation (Safe Mode)
-            try:
-                response = ollama.chat(
-                    model="mistral",
-                    messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": command},
-                    ],
-                )
-                payload = response["message"]["content"]
+            # Step B: LLM Generation via Groq (Fast Cloud Inference)
+            if groq_client:
+                try:
+                    response = groq_client.chat.completions.create(
+                        model=GROQ_MODEL,
+                        messages=[
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user", "content": command},
+                        ],
+                        temperature=0.7,
+                        max_tokens=512,
+                    )
+                    payload = response.choices[0].message.content
+                    action = "REPLY"
+                except Exception as e:
+                    print(f"Groq API error: {e}")
+                    action = "REPLY"
+                    payload = "System error: intelligent subsystem unresponsive."
+            else:
                 action = "REPLY"
-            except Exception as e:
-                print(f"Ollama error: {e}")
-                action = "REPLY"
-                payload = "System error: intelligent subsystem unresponsive."
+                payload = f"$ {command}\nCommand executed."
 
     # --- DB Persistence ---
     location = get_fake_location(session_id)

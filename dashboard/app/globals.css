@@ -1,61 +1,464 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* ========================================
+   MIMICRY PROTOCOL - DESIGN SYSTEM
+   Cyberpunk War Room Aesthetic
+   ======================================== */
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  /* Core Colors */
+  --cyber-green: #00ff88;
+  --cyber-green-dim: #00cc66;
+  --cyber-green-dark: #004422;
+  --threat-red: #ff3366;
+  --threat-red-dim: #cc2244;
+  --ink-blue: #00aaff;
+  --ink-blue-dim: #0088cc;
+  
+  /* Background Layers */
+  --bg-void: #000000;
+  --bg-surface: #0a0a0f;
+  --bg-elevated: #12121a;
+  --bg-card: rgba(15, 15, 25, 0.8);
+  
+  /* Text */
+  --text-primary: #e0ffe0;
+  --text-secondary: #66aa88;
+  --text-muted: #445566;
+  
+  /* Glow Effects */
+  --glow-green: 0 0 20px rgba(0, 255, 136, 0.3), 0 0 40px rgba(0, 255, 136, 0.1);
+  --glow-red: 0 0 20px rgba(255, 51, 102, 0.3), 0 0 40px rgba(255, 51, 102, 0.1);
+  --glow-blue: 0 0 20px rgba(0, 170, 255, 0.3), 0 0 40px rgba(0, 170, 255, 0.1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
-}
+/* ========================================
+   BASE STYLES
+   ======================================== */
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: black;
+  background: var(--bg-void);
+  color: var(--text-primary);
   overflow-x: hidden;
+  font-family: 'Geist Mono', 'JetBrains Mono', 'Fira Code', monospace;
 }
 
-/* --- CRT EFFECT LAYER --- */
-.crt-overlay {
+/* ========================================
+   ANIMATED MATRIX GRID BACKGROUND
+   ======================================== */
+
+.matrix-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.matrix-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    /* Vertical grid lines */
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 255, 136, 0.03) 0px,
+      rgba(0, 255, 136, 0.03) 1px,
+      transparent 1px,
+      transparent 60px
+    ),
+    /* Horizontal grid lines */
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 255, 136, 0.03) 0px,
+      rgba(0, 255, 136, 0.03) 1px,
+      transparent 1px,
+      transparent 60px
+    );
+  animation: gridPulse 4s ease-in-out infinite;
+}
+
+.matrix-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 80% 50% at 50% 50%,
+    transparent 0%,
+    var(--bg-void) 100%
+  );
+}
+
+@keyframes gridPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* Animated scan line effect */
+.scan-line {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 50;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, var(--cyber-green), transparent);
+  opacity: 0.3;
+  animation: scanMove 8s linear infinite;
+  z-index: 100;
   pointer-events: none;
-  background: 
-    /* Scanlines */
-    linear-gradient(
-      rgba(18, 16, 16, 0) 50%, 
-      rgba(0, 0, 0, 0.25) 50%
-    ),
-    /* Vignette */
-    radial-gradient(
-      circle at center,
-      rgba(0, 0, 0, 0) 60%,
-      rgba(0, 0, 0, 0.4) 100%
-    );
-  background-size: 100% 4px, 100% 100%;
-  animation: flicker 0.15s infinite;
 }
 
-@keyframes flicker {
+@keyframes scanMove {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+/* ========================================
+   CRT EFFECT LAYER (Enhanced)
+   ======================================== */
+
+.crt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  pointer-events: none;
+  background: 
+    /* Subtle scanlines */
+    repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 2px,
+      rgba(0, 0, 0, 0.15) 2px,
+      rgba(0, 0, 0, 0.15) 4px
+    ),
+    /* Corner vignette */
+    radial-gradient(
+      circle at 50% 50%,
+      transparent 50%,
+      rgba(0, 0, 0, 0.4) 100%
+    );
+  animation: crtFlicker 0.1s infinite;
+}
+
+@keyframes crtFlicker {
   0% { opacity: 0.97; }
   50% { opacity: 1; }
   100% { opacity: 0.98; }
 }
 
-/* Optional: Slight color separation (chromatic aberration) on text */
-.glitch-text {
+/* ========================================
+   GLASSMORPHISM PANELS
+   ======================================== */
+
+.glass-panel {
+  background: rgba(10, 15, 20, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 255, 136, 0.15);
+  border-radius: 12px;
+}
+
+.glass-panel-elevated {
+  background: rgba(15, 20, 30, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  border-radius: 16px;
+  box-shadow: 
+    0 4px 30px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* ========================================
+   NEON GLOW EFFECTS
+   ======================================== */
+
+.neon-green {
+  color: var(--cyber-green);
   text-shadow: 
-    1px 0 rgba(255,0,0,0.5), 
-    -1px 0 rgba(0,0,255,0.5);
+    0 0 5px var(--cyber-green),
+    0 0 10px var(--cyber-green),
+    0 0 20px rgba(0, 255, 136, 0.5);
+}
+
+.neon-red {
+  color: var(--threat-red);
+  text-shadow: 
+    0 0 5px var(--threat-red),
+    0 0 10px var(--threat-red),
+    0 0 20px rgba(255, 51, 102, 0.5);
+}
+
+.neon-blue {
+  color: var(--ink-blue);
+  text-shadow: 
+    0 0 5px var(--ink-blue),
+    0 0 10px var(--ink-blue),
+    0 0 20px rgba(0, 170, 255, 0.5);
+}
+
+.glow-border-green {
+  border: 1px solid var(--cyber-green);
+  box-shadow: var(--glow-green);
+}
+
+.glow-border-red {
+  border: 1px solid var(--threat-red);
+  box-shadow: var(--glow-red);
+}
+
+.glow-border-blue {
+  border: 1px solid var(--ink-blue);
+  box-shadow: var(--glow-blue);
+}
+
+/* ========================================
+   ANIMATED BORDER GRADIENT
+   ======================================== */
+
+.animated-border {
+  position: relative;
+  background: var(--bg-card);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.animated-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: 12px;
+  background: linear-gradient(
+    90deg,
+    var(--cyber-green),
+    var(--ink-blue),
+    var(--cyber-green)
+  );
+  background-size: 200% 100%;
+  animation: borderShift 3s linear infinite;
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+@keyframes borderShift {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* Threat variant */
+.animated-border-threat::before {
+  background: linear-gradient(
+    90deg,
+    var(--threat-red),
+    var(--cyber-green),
+    var(--threat-red)
+  );
+  background-size: 200% 100%;
+  animation: borderShift 1s linear infinite;
+}
+
+/* ========================================
+   STAT COUNTER ANIMATION
+   ======================================== */
+
+.stat-value {
+  font-family: 'Geist Mono', monospace;
+  font-size: 2rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--cyber-green), var(--ink-blue));
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ========================================
+   PULSE ANIMATIONS
+   ======================================== */
+
+@keyframes pulse-green {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 0 10px rgba(0, 255, 136, 0);
+  }
+}
+
+@keyframes pulse-red {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(255, 51, 102, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 0 10px rgba(255, 51, 102, 0);
+  }
+}
+
+.pulse-green {
+  animation: pulse-green 2s ease-in-out infinite;
+}
+
+.pulse-red {
+  animation: pulse-red 1s ease-in-out infinite;
+}
+
+/* ========================================
+   GLITCH TEXT EFFECT
+   ======================================== */
+
+.glitch-text {
+  position: relative;
+}
+
+.glitch-text::before,
+.glitch-text::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.glitch-text::before {
+  color: var(--threat-red);
+  animation: glitch-1 0.3s infinite;
+  clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
+}
+
+.glitch-text::after {
+  color: var(--ink-blue);
+  animation: glitch-2 0.3s infinite;
+  clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%);
+}
+
+@keyframes glitch-1 {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-2px, 1px); }
+  40% { transform: translate(2px, -1px); }
+  60% { transform: translate(-1px, 2px); }
+  80% { transform: translate(1px, -2px); }
+}
+
+@keyframes glitch-2 {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(2px, -1px); }
+  40% { transform: translate(-2px, 1px); }
+  60% { transform: translate(1px, -2px); }
+  80% { transform: translate(-1px, 2px); }
+}
+
+/* ========================================
+   BUTTON STYLES
+   ======================================== */
+
+.cyber-button {
+  position: relative;
+  padding: 0.5rem 1rem;
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid var(--cyber-green-dim);
+  border-radius: 6px;
+  color: var(--cyber-green);
+  font-family: inherit;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.cyber-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 255, 136, 0.2),
+    transparent
+  );
+  transition: left 0.4s ease;
+}
+
+.cyber-button:hover {
+  background: rgba(0, 255, 136, 0.2);
+  box-shadow: var(--glow-green);
+}
+
+.cyber-button:hover::before {
+  left: 100%;
+}
+
+.cyber-button-danger {
+  background: rgba(255, 51, 102, 0.1);
+  border-color: var(--threat-red-dim);
+  color: var(--threat-red);
+}
+
+.cyber-button-danger:hover {
+  background: rgba(255, 51, 102, 0.2);
+  box-shadow: var(--glow-red);
+}
+
+/* ========================================
+   SCROLLBAR STYLING
+   ======================================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--cyber-green-dark);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cyber-green-dim);
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+.text-glow {
+  text-shadow: 0 0 10px currentColor;
+}
+
+.border-glow {
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-up {
+  animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }

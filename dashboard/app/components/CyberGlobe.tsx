@@ -10,13 +10,29 @@ type SessionData = {
   status: string;
 };
 
-// Home Base Coordinates (e.g., San Francisco)
+// Home Base Coordinates (San Francisco)
 const HOME_BASE = { lat: 37.7749, lng: -122.4194 };
 
 export default function CyberGlobe({ activeSessions }: { activeSessions: SessionData[] }) {
   const globeEl = useRef<GlobeMethods | undefined>(undefined);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 600, height: 400 });
   const [arcs, setArcs] = useState<any[]>([]);
   const [points, setPoints] = useState<any[]>([]);
+
+  // Responsive sizing
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const { width, height } = containerRef.current.getBoundingClientRect();
+        setDimensions({ width, height });
+      }
+    };
+
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, []);
 
   useEffect(() => {
     // Transform sessions into globe data
@@ -25,28 +41,33 @@ export default function CyberGlobe({ activeSessions }: { activeSessions: Session
       startLng: session.lng,
       endLat: HOME_BASE.lat,
       endLng: HOME_BASE.lng,
-      color: session.status === 'TARPIT' ? ['red', 'red'] : 
-             session.status === 'INK' ? ['blue', 'blue'] : 
-             ['#00ff00', '#00ff00'],
-      dashLength: 0.4,
-      dashGap: 0.2,
-      dashAnimateTime: session.status === 'IDLE' ? 2000 : 500, // Faster if attacking
+      color: session.status === 'TARPIT'
+        ? ['rgba(255, 51, 102, 0.8)', 'rgba(255, 51, 102, 0.3)']
+        : session.status === 'INK'
+          ? ['rgba(0, 170, 255, 0.8)', 'rgba(0, 170, 255, 0.3)']
+          : ['rgba(0, 255, 136, 0.8)', 'rgba(0, 255, 136, 0.3)'],
+      dashLength: session.status === 'TARPIT' ? 0.2 : 0.4,
+      dashGap: 0.1,
+      dashAnimateTime: session.status === 'TARPIT' ? 300 : session.status === 'IDLE' ? 2000 : 800,
     }));
 
     const newPoints = activeSessions.map(session => ({
       lat: session.lat,
       lng: session.lng,
-      size: 0.5,
-      color: session.status === 'TARPIT' ? 'red' : 
-             session.status === 'INK' ? 'blue' : 'green'
+      size: session.status === 'TARPIT' ? 0.8 : session.status === 'INK' ? 0.7 : 0.5,
+      color: session.status === 'TARPIT'
+        ? 'rgba(255, 51, 102, 1)'
+        : session.status === 'INK'
+          ? 'rgba(0, 170, 255, 1)'
+          : 'rgba(0, 255, 136, 1)'
     }));
 
-    // Add Home Base point
+    // Add Home Base point (larger, white)
     newPoints.push({
       lat: HOME_BASE.lat,
       lng: HOME_BASE.lng,
-      size: 0.8,
-      color: 'white'
+      size: 1.0,
+      color: 'rgba(255, 255, 255, 1)'
     });
 
     setArcs(newArcs);
@@ -54,45 +75,48 @@ export default function CyberGlobe({ activeSessions }: { activeSessions: Session
   }, [activeSessions]);
 
   useEffect(() => {
-    // Auto-rotate
     if (globeEl.current) {
-        globeEl.current.controls().autoRotate = true;
-        globeEl.current.controls().autoRotateSpeed = 0.5;
-        globeEl.current.pointOfView({ lat: 20, lng: 0, altitude: 2.5 });
+      globeEl.current.controls().autoRotate = true;
+      globeEl.current.controls().autoRotateSpeed = 0.3;
+      globeEl.current.controls().enableZoom = true;
+      globeEl.current.pointOfView({ lat: 20, lng: 0, altitude: 2.2 });
     }
   }, []);
 
   return (
-    <div className="w-full h-[400px] flex items-center justify-center overflow-hidden relative z-10">
+    <div ref={containerRef} className="w-full h-full flex items-center justify-center overflow-hidden">
       <Globe
         ref={globeEl}
-        width={800}
-        height={400}
+        width={dimensions.width}
+        height={dimensions.height}
         backgroundColor="rgba(0,0,0,0)"
         globeImageUrl="//unpkg.com/three-globe/example/img/earth-dark.jpg"
-        atmosphereColor="#00ff00"
-        atmosphereAltitude={0.15}
-        
-        // Data Layers
+        atmosphereColor="rgba(0, 255, 136, 0.3)"
+        atmosphereAltitude={0.2}
+
+        // Points (attack origins)
         pointsData={points}
-        pointAltitude={0.01}
+        pointAltitude={0.02}
         pointColor="color"
         pointRadius="size"
-        pointPulseRing={true}
+        pointsMerge={false}
 
+        // Arcs (attack paths)
         arcsData={arcs}
         arcColor="color"
         arcDashLength="dashLength"
         arcDashGap="dashGap"
         arcDashAnimateTime="dashAnimateTime"
-        arcAltitude={0.3}
-        arcStroke={0.5}
+        arcAltitude={0.25}
+        arcStroke={0.6}
+
+        // Rings at impact point
+        ringsData={activeSessions.length > 0 ? [{ lat: HOME_BASE.lat, lng: HOME_BASE.lng }] : []}
+        ringColor={() => 'rgba(0, 255, 136, 0.5)'}
+        ringMaxRadius={3}
+        ringPropagationSpeed={1}
+        ringRepeatPeriod={1500}
       />
-      
-      {/* Overlay Title */}
-      <div className="absolute bottom-4 left-4 text-xs text-green-700 tracking-[0.3em] font-mono pointer-events-none">
-         GEOSPATIAL THREAT VECTOR ANALYSIS //
-      </div>
     </div>
   );
 }

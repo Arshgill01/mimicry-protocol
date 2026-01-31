@@ -1,92 +1,102 @@
-# Project: Mimicry Protocol - Phase 3: The Dashboard (The Eyes)
+# Agent Task: Mimicry Protocol - Phase 3.2: The Cyber-Warfare Visuals
 
-## 1. Current Status
-
-We have a functioning backend:
-
-- Rust (`/tentacle`) handles raw TCP connections.
-- Python (`/brain`) provides LLM intelligence and defense strategies (`TARPIT`, `INK`).
-
-## 2. Phase 3 Objectives
-
-We need a **Real-Time Web Dashboard** to visualize attacks as they happen.
-
-- **Data Flow Update:** The Python Brain will act as the "Broadcaster." When it processes a command, it will send the data to the Rust Tentacle (as before) AND broadcast it to the Frontend via WebSocket.
-- **The UI:** A "Cyberpunk/Hacker" aesthetic dashboard showing live logs, threat levels, and the status of the Octopus.
+**Role:** Creative Frontend Engineer (Three.js/React + UI/UX)
+**Project:** "Mimicry Protocol" - A hacker honeypot dashboard.
+**Current State:** We have a grid of active "Session Cards" tracking hackers.
+**Objective:** Implement the "War Room" aesthetic. This involves a 3D Cyber-Globe visualizing attacks and a global CRT/Scanline post-processing effect to make the UI look like a retro-futuristic terminal.
 
 ---
 
-## 3. Implementation Steps
+## 1. Context & Requirements
 
-### 3.1 Backend Update: Add WebSockets to Python (`/brain/main.py`)
+The dashboard currently functions but looks too "clean." We need to dial up the "Hollywood Hacker" factor.
 
-**Task:** Enable real-time communication with the browser.
+**Key Features to Add:**
 
-1.  **WebSocket Manager:** Add a `ConnectionManager` class to handle active WebSocket connections (connect, disconnect, broadcast).
-2.  **Endpoint:** Create a standard WebSocket endpoint: `@app.websocket("/ws")`.
-3.  **Broadcast Logic:** Modify the existing `process_command` function.
-    - Right before returning the JSON response to Rust, **await** a broadcast message to all connected Websockets.
-    - **Message Format:**
-      ```json
+1.  **3D Cyber Globe:** A WebGL globe that visualizes active sessions as "Threat Vectors" (arcs) connecting the attacker's location to our server.
+2.  **CRT Overlay:** A global CSS effect that adds scanlines, screen flicker, and a slight curvature vignette to mimic an old monitor.
+3.  **Data Enrichment:** The Python backend must now provide (fake) Latitude/Longitude coordinates so we can plot these points on the map.
+
+---
+
+## 2. Implementation Instructions
+
+### Step A: Backend Update (`src/brain/main.py`)
+
+**Goal:** Provide geospatial data for the globe.
+
+1.  **Update `process_command`**:
+    - In the `manager.broadcast` payload, add `lat` and `lng`.
+    - **Logic:**
+      - Define a helper `get_fake_coords(session_id)`.
+      - Use `hash(session_id)` to deterministically pick coordinates from a list of "High Threat" locations (e.g., Moscow, Beijing, Pyongyang, Sao Paulo, Langley).
+      - _Why deterministic?_ So the same session ID always appears at the same spot on the map, even if the page refreshes.
+    - **Payload Example:**
+      ```python
       {
-        "timestamp": "HH:MM:SS",
-        "ip": "127.0.0.1", // Mock this or pass from Rust if available
-        "command": "rm -rf /",
-        "action": "TARPIT", // or REPLY, INK
-        "response_snippet": "Permission denied..."
+        "session_id": "...",
+        "lat": 55.7558, # Moscow
+        "lng": 37.6173,
+        # ... existing fields
       }
       ```
 
-### 3.2 Frontend Setup (`/dashboard`)
+### Step B: Frontend Dependencies
 
-**Task:** Initialize the visualization layer.
+**Instruction:**
 
-1.  **Stack:** create a new Next.js project: `npx create-next-app@latest dashboard` (TypeScript, Tailwind, App Router).
-2.  **Dependencies:** Install `lucide-react` for icons and `framer-motion` for animations.
+- Add `react-globe.gl` and `three` to the project.
+  - (Agent Note: If you cannot run npm commands, provide the `npm install react-globe.gl three` command in the output for the user).
 
-### 3.3 The UI Components
+### Step C: The Globe Component (`dashboard/app/components/CyberGlobe.tsx`)
 
-**Design Goal:** Dark mode, monospace fonts, "Command Center" vibe.
+**Goal:** A dark, moody holographic globe.
 
-**Create a main page (`page.tsx`) with two primary sections:**
+1.  **Create `CyberGlobe.tsx`**:
+    - Use `react-globe.gl`.
+    - **Visuals:**
+      - `globeImageUrl`: Use a dark/night texture (or `//unpkg.com/three-globe/example/img/earth-dark.jpg`).
+      - `backgroundColor`: `rgba(0,0,0,0)` (Transparent).
+      - `atmosphereColor`: "green".
+    - **Data Layers:**
+      - **Points:** Render a red pulsing ring at the `lat/lng` of every **Active Session**.
+      - **Arcs:** Draw a green curve from the Attacker's `lat/lng` to "Home Base" (pick a fixed coordinate, e.g., San Francisco).
+      - **Arc Speed:** The animation speed should increase if the session status is `TARPIT` or `INK`.
 
-#### Section A: The "Octopus State" (Visual Indicator)
+### Step D: The CRT Effect (`dashboard/app/globals.css`)
 
-- A large central status indicator.
-- **State Logic:**
-  - **Idle:** Green Ring / Pulse. Text: "SYSTEM: WAITING".
-  - **Active (REPLY):** Yellow Ring / Fast Pulse. Text: "MIMICRY: ACTIVE".
-  - **Defense (TARPIT/INK):** Red or Blue Ring / Aggressive Animation. Text: "DEFENSE MODE: INK DEPLOYED".
+**Goal:** Global retro-terminal atmosphere.
 
-#### Section B: The Live Attack Log (Terminal View)
+1.  **Add CSS Variables & Keyframes:**
+    - Create a `.crt-overlay` class that sits on top of everything (`z-index: 50`, `pointer-events: none`).
+    - **Scanlines:** A repeating linear gradient background that moves slightly.
+    - **Flicker:** A subtle opacity animation (97% to 100%).
+    - **Vignette:** A radial gradient to darken the corners.
 
-- A scrolling container that mimics a terminal window.
-- It connects to `ws://localhost:8000/ws` on mount.
-- When a message arrives, prepend it to the list.
-- **Styling:**
-  - Normal commands (`ls`): White text.
-  - Threats (`rm -rf`): Red text.
-  - Octopus Responses: Dimmed gray text.
+### Step E: Integration (`dashboard/app/page.tsx`)
 
-### 3.4 Detailed Implementation Prompts (Code Generation)
+**Goal:** Layout assembly.
 
-**Step 1:**
-"Update `brain/main.py` to include `WebSocket` from `fastapi` and a `ConnectionManager`. Broadcast every processed command event to connected clients."
+1.  **Update Layout:**
+    - Insert the `<CyberGlobe />` component at the top of the page (The "World View" Zone).
+    - Ensure the `activeSessions` state is passed to the Globe to render the points/arcs real-time.
+    - Wrap the entire main div in the `crt-overlay` class (or add a div for it).
 
-**Step 2:**
-"Create the Next.js `dashboard` page. Use a `useWebSocket` hook to connect to the backend. Store the logs in a React state array. Render the logs in a styled 'terminal' window using Tailwind CSS (bg-black, text-green-400, font-mono)."
+---
 
-**Step 3:**
-"Add the visual flair. Use `framer-motion` to create a 'Status Circle' component that changes color (Green/Yellow/Red) based on the last received `action` from the WebSocket. If the action is `TARPIT`, the screen should visually 'glitch' or turn red."
+## 3. Definition of Done
 
-### 3.5 Definition of Done
+1.  **Backend:** `src/brain/main.py` sends coordinates.
+2.  **Visuals:** The dashboard now has a 3D globe at the top.
+3.  **Interaction:** When I connect via `nc localhost 2222`, a new arc appears on the globe connecting a random country to my server.
+4.  **Aesthetics:** The whole screen has a subtle scanline effect.
 
-1.  I start Python, Rust, and the Next.js dev server.
-2.  I open `localhost:3000` (Dashboard).
-3.  I run `nc localhost 2222` and type `ls`.
-4.  **Result:** The Dashboard instantly updates showing the command `ls` and the status "MIMICRY ACTIVE".
-5.  I type `rm -rf`.
-6.  **Result:** The Dashboard flashes RED, shows "TARPIT ACTIVE", and logs the threat.
+---
 
-**Action:**
-Please generate the code for the Python WebSocket update first, then the Next.js page component.
+**Output:**
+Please provide the full updated code for:
+
+1.  `src/brain/main.py`
+2.  `dashboard/app/globals.css`
+3.  `dashboard/app/components/CyberGlobe.tsx` (New File)
+4.  `dashboard/app/page.tsx`

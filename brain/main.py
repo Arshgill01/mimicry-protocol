@@ -3,6 +3,11 @@ from datetime import datetime
 import hashlib
 import sqlite3
 import os
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
+
 from groq import Groq
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect

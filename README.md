@@ -1,10 +1,12 @@
-# 🦑 Mimicry Protocol
+# Mimicry Protocol
 
-A high-fidelity honeypot system with a cyberpunk command center dashboard. Intercept, analyze, and respond to hacker attacks in real-time.
+**A high-fidelity honeypot system with a cyberpunk command center dashboard.**
 
-![Dashboard](dashboard/app/favicon.ico)
+Intercept, analyze, and respond to hacker attacks in real-time with an immersive War Room interface.
 
-## 🚀 Quick Start
+---
+
+## Quick Start
 
 ### Prerequisites
 - Node.js 18+ 
@@ -34,7 +36,7 @@ cargo run
 ```
 SSH Honeypot listens on port `2222`
 
-### 4. Test with a fake attacker
+### 4. Test with a simulated attacker
 ```bash
 nc localhost 2222
 # Type commands like: ls, cat /etc/passwd, rm -rf /
@@ -42,32 +44,33 @@ nc localhost 2222
 
 ---
 
-## 🎮 Dashboard Features
+## Dashboard Features
 
 ### Real-Time Monitoring
-- **3D Globe** - See attacks originating from around the world
-- **Live Activity Feed** - Watch commands as they happen
-- **Session Cards** - Expandable views of each hacker session
+- **3D Globe** — Visualize attacks originating from around the world
+- **Live Activity Feed** — Watch commands as they execute in real-time
+- **Session Cards** — Expandable views of each hacker session with full command history
 
 ### Threat Response (God Mode)
-- **TARPIT** - Slow down the attacker with infinite delays
-- **INK** - Flood the attacker with fake data
-- **RESET** - Return to normal response mode
+| Action | Description |
+|--------|-------------|
+| **TARPIT** | Slow down attackers with infinite delays |
+| **INK** | Flood attackers with convincing fake data |
+| **RESET** | Return to normal response mode |
 
 ### Analytics
-- **Stats Panel** - Active sessions, threats, commands
-- **Command Timeline** - Hourly activity visualization
-- **System Status** - Brain & Tentacle connectivity
+- **Stats Panel** — Active sessions, threats detected, total commands
+- **Command Timeline** — Hourly activity visualization with threat overlay
+- **System Status** — Brain & Tentacle connectivity indicators
 
-### Features
-- **Search & Filter** - Find sessions by command, country, status
-- **Export JSON** - Download all session data
-- **Volume Control** - Adjust alert/ambient sound levels
-- **Ambient Mode** - Enable subtle background hum for immersion
+### Utilities
+- **Search & Filter** — Find sessions by command, country, or status
+- **Export** — Download all session data as JSON
+- **Audio Controls** — Volume slider and ambient mode toggle
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -76,45 +79,49 @@ nc localhost 2222
                               │
                               ▼
                  ┌────────────────────────┐
-                 │  🐙 Tentacle (Rust)    │
+                 │  Tentacle (Rust)       │
                  │  SSH Honeypot :2222    │
                  └────────────────────────┘
                               │ HTTP API
                               ▼
                  ┌────────────────────────┐
-                 │  🧠 Brain (Python)     │
+                 │  Brain (Python)        │
                  │  FastAPI + Groq LLM    │
                  │  SQLite persistence    │
                  └────────────────────────┘
                               │ WebSocket
                               ▼
                  ┌────────────────────────┐
-                 │  🖥️ Dashboard (React)  │
+                 │  Dashboard (React)     │
                  │  Next.js + Globe.gl    │
                  └────────────────────────┘
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Component | Technology |
 |-----------|------------|
 | Dashboard | Next.js 16, React 19, Framer Motion, Globe.gl |
 | Brain | FastAPI, Groq API (Llama 3.3 70B), SQLite |
-| Tentacle | Rust, Tokio, Tokio-SSH |
-| Audio | Web Audio API (procedural sounds) |
+| Tentacle | Rust, Tokio |
+| Audio | Web Audio API (procedural synthesis) |
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
-### Environment Variables (Brain)
+### Environment Variables
+
+Create a `.env` file in the `brain/` directory:
+
 ```bash
-export GROQ_API_KEY="your_groq_api_key"
+GROQ_API_KEY=your_groq_api_key_here
 ```
 
 ### Ports
+
 | Service | Port |
 |---------|------|
 | Dashboard | 3000 |
@@ -123,10 +130,10 @@ export GROQ_API_KEY="your_groq_api_key"
 
 ---
 
-## 📝 License
+## License
 
-MIT License - See LICENSE file for details.
+MIT License — See LICENSE file for details.
 
 ---
 
-Built with 🦑 by the Mimicry Protocol team.
+*Built by the Mimicry Protocol team.*

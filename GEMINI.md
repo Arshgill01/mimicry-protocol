@@ -1,102 +1,126 @@
-# Agent Task: Mimicry Protocol - Phase 3.2: The Cyber-Warfare Visuals
+# Agent Task: Mimicry Protocol - Phase 4: Immersion & Memory
 
-**Role:** Creative Frontend Engineer (Three.js/React + UI/UX)
-**Project:** "Mimicry Protocol" - A hacker honeypot dashboard.
-**Current State:** We have a grid of active "Session Cards" tracking hackers.
-**Objective:** Implement the "War Room" aesthetic. This involves a 3D Cyber-Globe visualizing attacks and a global CRT/Scanline post-processing effect to make the UI look like a retro-futuristic terminal.
+**Role:** Senior Full-Stack Engineer (Python/FastAPI + React/Web Audio API)
+**Project:** "Mimicry Protocol" - A high-fidelity hacker honeypot dashboard.
+**Current State:** We have a functional 3D dashboard with "God Mode" controls and a 3D globe.
+**Problem:** The system feels "hollow" because it is silent, and it is fragile because restarting the backend wipes all data.
+
+**Objective:** Implement a SQLite database for data persistence and add cinematic sound effects using the Web Audio API to create a true "War Room" atmosphere.
 
 ---
 
 ## 1. Context & Requirements
 
-The dashboard currently functions but looks too "clean." We need to dial up the "Hollywood Hacker" factor.
+To make the system production-ready and immersive for the hackathon demo, we need:
 
-**Key Features to Add:**
-
-1.  **3D Cyber Globe:** A WebGL globe that visualizes active sessions as "Threat Vectors" (arcs) connecting the attacker's location to our server.
-2.  **CRT Overlay:** A global CSS effect that adds scanlines, screen flicker, and a slight curvature vignette to mimic an old monitor.
-3.  **Data Enrichment:** The Python backend must now provide (fake) Latitude/Longitude coordinates so we can plot these points on the map.
+1.  **Persistence:** We must store every session, command, and status change in a database. When the Python server restarts, the dashboard must be able to "hydrate" (reload) the full history of attacks.
+2.  **Audio:** The system must generate sci-fi UI sounds programmatically (no external MP3 files allowed) for key events:
+    - **PING:** A high-pitched sonar beep when a new hacker connects.
+    - **ALARM:** A low, pulsing warning sound when a threat (`TARPIT` or `INK`) is triggered.
 
 ---
 
 ## 2. Implementation Instructions
 
-### Step A: Backend Update (`src/brain/main.py`)
+### Step A: Backend Persistence (`src/brain/main.py`)
 
-**Goal:** Provide geospatial data for the globe.
+**Goal:** Replace the current in-memory lists with a SQLite database.
 
-1.  **Update `process_command`**:
-    - In the `manager.broadcast` payload, add `lat` and `lng`.
-    - **Logic:**
-      - Define a helper `get_fake_coords(session_id)`.
-      - Use `hash(session_id)` to deterministically pick coordinates from a list of "High Threat" locations (e.g., Moscow, Beijing, Pyongyang, Sao Paulo, Langley).
-      - _Why deterministic?_ So the same session ID always appears at the same spot on the map, even if the page refreshes.
-    - **Payload Example:**
-      ```python
+1.  **Database Setup:**
+
+    - Use the built-in `sqlite3` library (keep it simple, do not use an ORM like SQLAlchemy).
+    - **Database File:** `honeypot.db` (create automatically on startup if missing).
+    - **Schema:**
+      - `sessions` table:
+        - `session_id` (TEXT PRIMARY KEY)
+        - `ip` (TEXT)
+        - `country` (TEXT)
+        - `start_time` (TEXT)
+        - `status` (TEXT) - e.g., 'ACTIVE', 'TARPIT', 'INK'
+      - `logs` table:
+        - `id` (INTEGER PRIMARY KEY AUTOINCREMENT)
+        - `session_id` (TEXT, Foreign Key)
+        - `command` (TEXT)
+        - `action` (TEXT)
+        - `response` (TEXT)
+        - `timestamp` (TEXT)
+
+2.  **Logic Updates (Refactor `process_command`):**
+
+    - **On New Command:**
+      - Check if `session_id` exists in DB. If not, insert into `sessions` with the fake country/IP logic we already have.
+      - Insert the interaction into `logs`.
+    - **On Override (God Mode):**
+      - Update the `status` column in the `sessions` table when the Admin triggers an override.
+
+3.  **New API Endpoint:**
+    - **Endpoint:** `GET /history`
+    - **Logic:** Query all sessions and their associated logs.
+    - **Response Format:** A nested JSON structure suitable for the frontend state:
+      ```json
       {
-        "session_id": "...",
-        "lat": 55.7558, # Moscow
-        "lng": 37.6173,
-        # ... existing fields
+        "sessions": {
+          "uuid-123": {
+            "id": "uuid-123",
+            "country": "RU",
+            "status": "ACTIVE",
+            "history": [ ...logs... ]
+          }
+        }
       }
       ```
 
-### Step B: Frontend Dependencies
+### Step B: Frontend Audio Engine (`dashboard/app/hooks/useCyberSounds.ts`)
 
-**Instruction:**
+**Goal:** Generate "Hacker Movie" sound effects using purely code (Web Audio API) so we don't need to manage assets.
 
-- Add `react-globe.gl` and `three` to the project.
-  - (Agent Note: If you cannot run npm commands, provide the `npm install react-globe.gl three` command in the output for the user).
+1.  **Create Custom Hook:** `useCyberSounds()`
+    - **Method `playPing()`:**
+      - Create an `OscillatorNode` (type: 'sine').
+      - Frequency: Start high (~1200Hz) and exponentialRamp quickly down to 0Hz over 0.1s.
+      - Effect: A sharp "Bip!" sound.
+    - **Method `playAlarm()`:**
+      - Create an `OscillatorNode` (type: 'sawtooth').
+      - Frequency: Low (~100Hz).
+      - Gain: Oscillate volume up and down (0.1 to 0.5) to create a "throbbing" alarm texture.
+      - Duration: Play for 1.5 seconds then stop.
 
-### Step C: The Globe Component (`dashboard/app/components/CyberGlobe.tsx`)
+### Step C: Frontend Integration (`dashboard/app/page.tsx`)
 
-**Goal:** A dark, moody holographic globe.
+**Goal:** Connect the Brain and the Ears.
 
-1.  **Create `CyberGlobe.tsx`**:
-    - Use `react-globe.gl`.
-    - **Visuals:**
-      - `globeImageUrl`: Use a dark/night texture (or `//unpkg.com/three-globe/example/img/earth-dark.jpg`).
-      - `backgroundColor`: `rgba(0,0,0,0)` (Transparent).
-      - `atmosphereColor`: "green".
-    - **Data Layers:**
-      - **Points:** Render a red pulsing ring at the `lat/lng` of every **Active Session**.
-      - **Arcs:** Draw a green curve from the Attacker's `lat/lng` to "Home Base" (pick a fixed coordinate, e.g., San Francisco).
-      - **Arc Speed:** The animation speed should increase if the session status is `TARPIT` or `INK`.
+1.  **Hydration (Memory):**
 
-### Step D: The CRT Effect (`dashboard/app/globals.css`)
+    - Add a `useEffect` hook that runs once on mount.
+    - `fetch('http://localhost:8000/history')`
+    - Update the `activeSessions` state with the result.
+    - _Result:_ The map and grid populate immediately, even if you just opened the page.
 
-**Goal:** Global retro-terminal atmosphere.
+2.  **Audio Triggers:**
 
-1.  **Add CSS Variables & Keyframes:**
-    - Create a `.crt-overlay` class that sits on top of everything (`z-index: 50`, `pointer-events: none`).
-    - **Scanlines:** A repeating linear gradient background that moves slightly.
-    - **Flicker:** A subtle opacity animation (97% to 100%).
-    - **Vignette:** A radial gradient to darken the corners.
+    - Import `useCyberSounds`.
+    - **Trigger Logic (inside `ws.onmessage`):**
+      - If the message contains a `session_id` we haven't seen before -> `playPing()`.
+      - If `message.action` is "TARPIT" or "INK" -> `playAlarm()`.
 
-### Step E: Integration (`dashboard/app/page.tsx`)
-
-**Goal:** Layout assembly.
-
-1.  **Update Layout:**
-    - Insert the `<CyberGlobe />` component at the top of the page (The "World View" Zone).
-    - Ensure the `activeSessions` state is passed to the Globe to render the points/arcs real-time.
-    - Wrap the entire main div in the `crt-overlay` class (or add a div for it).
+3.  **UI Polish:**
+    - Add a simple "Mute/Unmute" toggle button (Speaker Icon) in the top-right corner of the dashboard. Store this preference in React State.
 
 ---
 
 ## 3. Definition of Done
 
-1.  **Backend:** `src/brain/main.py` sends coordinates.
-2.  **Visuals:** The dashboard now has a 3D globe at the top.
-3.  **Interaction:** When I connect via `nc localhost 2222`, a new arc appears on the globe connecting a random country to my server.
-4.  **Aesthetics:** The whole screen has a subtle scanline effect.
+1.  **Persistence Test:** I can start the system, run 5 commands, stop the Python server, restart it, refresh the webpage, and see all 5 commands still listed.
+2.  **Audio Test:**
+    - Running `nc localhost 2222` triggers a "Ping" sound.
+    - Running `rm -rf /` triggers an "Alarm" sound.
+3.  **Code Quality:** No external dependencies for audio; DB handles locking correctly.
 
 ---
 
 **Output:**
 Please provide the full updated code for:
 
-1.  `src/brain/main.py`
-2.  `dashboard/app/globals.css`
-3.  `dashboard/app/components/CyberGlobe.tsx` (New File)
-4.  `dashboard/app/page.tsx`
+1.  `src/brain/main.py` (Complete file with SQLite integration)
+2.  `dashboard/app/hooks/useCyberSounds.ts` (New file)
+3.  `dashboard/app/page.tsx` (Complete file with Audio and Hydration logic)
